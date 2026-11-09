@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1d2923"><meta name="description" content="Application de fiches d'intervention AgriTech Services">
+<link rel="manifest" href="manifest.webmanifest">
+<title>AgriTech Services — Interventions</title>
+<style>
+:root{--green:#477a35;--dark:#1d2923;--cream:#f5f1e7;--pale:#eaf1e5;--line:#d9ded7;--muted:#68736b}
+*{box-sizing:border-box}body{margin:0;background:#f4f5f2;color:var(--dark);font:15px system-ui,-apple-system,Segoe UI,sans-serif}
+header{background:var(--dark);color:white;padding:18px max(16px,env(safe-area-inset-left));border-bottom:5px solid var(--green)}
+header h1{font-size:21px;margin:0;letter-spacing:.04em}header p{margin:5px 0 0;color:#dce6d8;font-size:12px}
+main{max-width:900px;margin:auto;padding:14px 12px 40px}
+.panel{background:white;border:1px solid var(--line);border-radius:13px;padding:14px;margin:12px 0;box-shadow:0 2px 8px #17251a0a}
+h2{font-size:16px;margin:0 0 12px;border-left:4px solid var(--green);padding-left:9px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+label{display:block;font-size:12px;font-weight:700;margin:0 0 5px;color:#344139}
+input,select,textarea{width:100%;padding:11px;border:1px solid #cbd3ca;border-radius:8px;background:#fff;color:var(--dark);font:inherit;font-size:14px}
+textarea{min-height:75px;resize:vertical}
+.full{grid-column:1/-1}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+button,.filebtn{border:0;border-radius:9px;padding:11px 14px;background:var(--green);color:white;font-weight:700;font-size:14px;cursor:pointer}
+button.secondary,.filebtn.secondary{background:var(--dark)}button.light{background:var(--pale);color:var(--dark);border:1px solid var(--line)}
+button.danger{background:#9a352e}
+small,.hint{color:var(--muted);font-size:12px}
+.status{padding:10px;border-radius:9px;background:var(--pale);font-size:13px;margin:10px 0}
+.list{display:grid;gap:7px}.record{display:flex;justify-content:space-between;gap:10px;align-items:center;border:1px solid var(--line);padding:10px;border-radius:9px}
+.record button{padding:7px 10px;font-size:12px}
+canvas{width:100%;height:140px;border:1px dashed #9eaa9c;border-radius:8px;touch-action:none;background:#fff}
+.total{background:var(--dark);color:white;border-radius:10px;padding:12px;display:grid;grid-template-columns:1fr auto;gap:6px}
+.total strong{font-size:18px;color:#d7e9cc}
+.hidden{display:none!important}
+@media(max-width:560px){.grid{grid-template-columns:1fr}.full{grid-column:auto}header h1{font-size:19px}.panel{padding:12px}}
+@media print{header,.no-print,.actions{display:none!important}body{background:white}main{max-width:none;padding:0}.panel{box-shadow:none;border:0;padding:4px;margin:4px 0}input,textarea,select{border:0;border-bottom:1px solid #aaa;padding:3px}.total{background:#eee;color:#111}}
+</style>
+</head>
+<body>
+<header><h1>AGRITECH SERVICES</h1><p>Fiches d’intervention • SAV agricole • France entière</p></header>
+<main>
+<div class="panel no-print">
+ <div class="actions">
+  <button onclick="newForm()">＋ Nouvelle fiche</button>
+  <button class="secondary" onclick="saveRecord()">Enregistrer</button>
+  <button class="light" onclick="printReport()">Générer le PDF</button>
+  <button class="light" onclick="exportBackup()">Exporter sauvegarde</button>
+  <label class="filebtn secondary">Importer sauvegarde<input id="importFile" type="file" accept=".json,application/json" hidden onchange="importBackup(event)"></label>
+ </div>
+ <div id="saveStatus" class="status">Stockage local prêt. Les fiches enregistrées restent sur cet appareil.</div>
+</div>
+
+<form id="jobForm" onsubmit="return false">
+<input type="hidden" id="recordId">
+<section class="panel"><h2>1. Dossier et intervention</h2><div class="grid">
+<div><label>N° de fiche</label><input id="jobNo" placeholder="ATS-2026-001"></div>
+<div><label>Date</label><input id="date" type="date"></div>
+<div><label>Statut</label><select id="status"><option>Intervention réalisée</option><option>Diagnostic uniquement</option><option>Devis à établir</option><option>Intervention à poursuivre</option></select></div>
+<div><label>Technicien</label><input id="technician"></div>
+<div><label>Heure d’arrivée</label><input id="arrival" type="time"></div>
+<div><label>Heure de départ</label><input id="departure" type="time"></div>
+</div></section>
+
+<section class="panel"><h2>2. Client et lieu d’intervention</h2><div class="grid">
+<div><label>Nom / exploitation / société</label><input id="customer"></div>
+<div><label>Contact sur place</label><input id="contact"></div>
+<div class="full"><label>Adresse d’intervention</label><input id="address"></div>
+<div><label>Code postal</label><input id="postcode"></div><div><label>Ville</label><input id="city"></div>
+<div><label>E-mail</label><input id="email" type="email"></div><div><label>Téléphone</label><input id="phone" type="tel"></div>
+</div></section>
+
+<section class="panel"><h2>3. Identification du matériel</h2><div class="grid">
+<div><label>Type de matériel</label><select id="machineType"><option>Pulvérisateur automoteur</option><option>Pulvérisateur traîné</option><option>Tracteur agricole</option><option>Automoteur / machine agricole</option><option>Matériel hydraulique</option><option>Irrigation / pompage</option><option>Autre</option></select></div>
+<div><label>Marque / modèle</label><input id="machine"></div>
+<div><label>N° de série / identification</label><input id="serial"></div><div><label>Immatriculation</label><input id="registration"></div>
+<div><label>Heures moteur / compteur</label><input id="hoursMachine"></div><div><label>Année / mise en service</label><input id="year"></div>
+</div></section>
+
+<section class="panel"><h2>4. Demande client et diagnostic</h2><div class="grid">
+<div class="full"><label>Motif de l’appel / demande client</label><textarea id="request"></textarea></div>
+<div class="full"><label>Symptômes et conditions d’apparition</label><textarea id="symptoms"></textarea></div>
+<div class="full"><label>Codes défaut / messages / voyants</label><textarea id="faults"></textarea></div>
+<div class="full"><label>Contrôles et mesures effectués</label><textarea id="checks"></textarea></div>
+<div class="full"><label>Résultat du diagnostic / cause identifiée</label><textarea id="diagnosis"></textarea></div>
+<div class="full"><label>Réserves / défauts complémentaires / sécurité</label><textarea id="reservations"></textarea></div>
+</div></section>
+
+<section class="panel"><h2>5. Travaux réalisés et essais</h2><div class="grid">
+<div class="full"><label>Opérations effectuées / réglages / réparations</label><textarea id="work"></textarea></div>
+<div><label>Résultat de l’essai final</label><select id="testResult"><option>Conforme</option><option>Partiellement conforme</option><option>Non conforme</option><option>À suivre / essai impossible</option></select></div>
+<div><label>Machine restituée</label><select id="machineReturned"><option>Oui</option><option>Non</option><option>Sous réserve</option></select></div>
+<div class="full"><label>Travaux complémentaires préconisés / suivi</label><textarea id="recommendations"></textarea></div>
+</div></section>
+
+<section class="panel"><h2>6. Pièces, fournitures et consommables</h2>
+<p class="hint">Renseigne la quantité et le prix unitaire HT. Le total est calculé automatiquement.</p>
+<div id="parts"></div><div class="actions no-print"><button type="button" class="light" onclick="addPart()">＋ Ajouter une ligne</button></div>
+</section>
+
+<section class="panel"><h2>7. Temps passé et déplacements</h2><div class="grid">
+<div><label>Heures de main-d’œuvre</label><input id="laborHours" type="number" step=".25" min="0" value="0"></div>
+<div><label>Taux horaire HT (€)</label><select id="laborRate"><option value="85">85 — SAV standard</option><option value="95">95 — diagnostic spécialisé</option><option value="105">105 — diagnostic électronique</option><option value="110">110 — expertise technique</option><option value="90">90 — électrique</option><option value="75">75 — assistance à distance</option><option value="0">0 — forfait / autre accord</option></select></div>
+<div><label>Temps de trajet (heures)</label><input id="travelHours" type="number" step=".25" min="0" value="0"></div>
+<div><label>Taux trajet HT (€ / h)</label><input id="travelRate" type="number" step=".01" value="45"></div>
+<div><label>Kilométrage aller-retour (km)</label><input id="km" type="number" step="1" min="0" value="0"></div>
+<div><label>Tarif kilométrique HT (€ / km)</label><input id="kmRate" type="number" step=".01" value="0.95"></div>
+<div><label>Péages / parking / hébergement / repas (€ HT)</label><input id="expenses" type="number" step=".01" min="0" value="0"></div>
+<div><label>Remise éventuelle (€ HT)</label><input id="discount" type="number" step=".01" min="0" value="0"></div>
+</div></section>
+
+<section class="panel"><h2>8. Récapitulatif financier</h2><div class="grid">
+<div><label>TVA applicable (%)</label><select id="vatRate"><option value="0">0 — régime sans TVA / à confirmer</option><option value="5.5">5,5 %</option><option value="10">10 %</option><option value="20" selected>20 %</option></select></div>
+<div><label>Majoration éventuelle (%)</label><select id="surcharge"><option value="0">Aucune</option><option value="25">25 %</option><option value="50">50 %</option></select></div>
+</div>
+<div class="total" style="margin-top:12px">
+<span>Main-d’œuvre</span><span id="laborTotal">0,00 €</span>
+<span>Temps de trajet</span><span id="travelTotal">0,00 €</span>
+<span>Déplacement kilométrique</span><span id="kmTotal">0,00 €</span>
+<span>Pièces et fournitures</span><span id="partsTotal">0,00 €</span>
+<span>Autres frais</span><span id="expensesTotal">0,00 €</span>
+<span>Majoration</span><span id="surchargeTotal">0,00 €</span>
+<span>Remise</span><span id="discountTotal">−0,00 €</span>
+<strong>Total HT</strong><strong id="totalHT">0,00 €</strong>
+<span>TVA</span><span id="vatAmount">0,00 €</span>
+<strong>Total TTC</strong><strong id="totalTTC">0,00 €</strong>
+</div>
+<p class="hint">Le taux de TVA doit correspondre à ton régime fiscal et à la nature de la prestation. Vérifie-le avant d’émettre une facture.</p>
+</section>
+
+<section class="panel"><h2>9. Signature du client</h2>
+<p class="hint">La signature confirme la prise de connaissance du compte rendu. Elle ne remplace pas un devis ou une facture.</p>
+<canvas id="signature" width="900" height="300"></canvas>
+<div class="actions no-print"><button type="button" class="light" onclick="clearSignature()">Effacer la signature</button></div>
+<div class="grid"><div><label>Nom du signataire</label><input id="signer"></div><div><label>Date de signature</label><input id="signedDate" type="date"></div></div>
+</section>
+</form>
+
+<section class="panel no-print"><h2>10. Historique des fiches enregistrées</h2><div id="records" class="list"><small>Aucune fiche enregistrée.</small></div></section>
+<section class="panel no-print"><h2>11. Synchronisation cloud (option à activer)</h2>
+<p class="hint">Les fiches sont actuellement conservées sur cet appareil. Pour les retrouver sur plusieurs appareils, il faudra relier un compte cloud privé et configurer sa base de données. La synchronisation n’est pas encore active.</p>
+<div class="grid"><div><label>URL du projet Supabase</label><input id="supabaseUrl" placeholder="https://xxxx.supabase.co"></div><div><label>Clé publique anon</label><input id="supabaseKey" placeholder="Clé publique du projet"></div></div>
+<div class="actions"><button class="secondary" type="button" onclick="saveCloudConfig()">Enregistrer la configuration</button><button class="light" type="button" onclick="cloudInfo()">Voir les étapes cloud</button></div>
+<div id="cloudMsg" class="hint"></div>
+</section>
+</main>
+<script>
+const fields = ["jobNo","date","status","technician","arrival","departure","customer","contact","address","postcode","city","email","phone","machineType","machine","serial","registration","hoursMachine","year","request","symptoms","faults","checks","diagnosis","reservations","work","testResult","machineReturned","recommendations","laborHours","laborRate","travelHours","travelRate","km","kmRate","expenses","discount","vatRate","surcharge","signer","signedDate"];
+const money=n=>new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'}).format(Number(n)||0);
+let parts=[], signatureDirty=false;
+const $=id=>document.getElementById(id);
+function val(id){return $(id).value}
+function num(id){return Number(val(id))||0}
+function newForm(){ $('jobForm').reset(); $('recordId').value=''; $('date').value=new Date().toISOString().slice(0,10); $('signedDate').value=''; $('parts').innerHTML=''; parts=[]; addPart(); clearSignature(); calc(); $('saveStatus').textContent='Nouvelle fiche prête.'; window.scrollTo({top:0,behavior:'smooth'});}
+function addPart(item={name:'',qty:1,price:0}){let i=parts.length;parts.push(item);renderParts();}
+function renderParts(){ $('parts').innerHTML=parts.map((p,i)=>`<div class="grid" style="border:1px solid var(--line);padding:9px;border-radius:8px;margin:8px 0"><div class="full"><label>Désignation / référence</label><input data-p="${i}" data-k="name" value="${esc(p.name)}"></div><div><label>Quantité</label><input type="number" min="0" step=".01" data-p="${i}" data-k="qty" value="${p.qty}"></div><div><label>Prix unitaire HT (€)</label><input type="number" min="0" step=".01" data-p="${i}" data-k="price" value="${p.price}"></div><div class="full"><b>Total : ${money(p.qty*p.price)}</b> <button type="button" class="danger no-print" onclick="removePart(${i})">Supprimer</button></div></div>`).join('');}
+function removePart(i){parts.splice(i,1);renderParts();calc();}
+$('parts').addEventListener('input',e=>{let i=e.target.dataset.p,k=e.target.dataset.k;if(i!==undefined){parts[+i][k]=k==='name'?e.target.value:Number(e.target.value)||0;renderParts();calc();}});
+function partSum(){return parts.reduce((s,p)=>s+(Number(p.qty)||0)*(Number(p.price)||0),0)}
+function calc(){
+let labor=num('laborHours')*num('laborRate'),travel=num('travelHours')*num('travelRate'),km=num('km')*num('kmRate'),pt=partSum(),exp=num('expenses'),base=labor+travel+km+pt+exp;
+let surcharge=base*num('surcharge')/100,disc=num('discount'),ht=Math.max(0,base+surcharge-disc),vat=ht*num('vatRate')/100,ttc=ht+vat;
+[['laborTotal',labor],['travelTotal',travel],['kmTotal',km],['partsTotal',pt],['expensesTotal',exp],['surchargeTotal',surcharge],['discountTotal',disc],['totalHT',ht],['vatAmount',vat],['totalTTC',ttc]].forEach(([id,n])=>$(id).textContent=money(n));
+}
+document.querySelectorAll('#jobForm input,#jobForm select,#jobForm textarea').forEach(el=>el.addEventListener('input',calc));
+function collect(){let obj={};fields.forEach(id=>obj[id]=val(id));obj.parts=parts;obj.signature=$('signature').toDataURL('image/png');obj.updatedAt=new Date().toISOString();return obj;}
+function restore(o){fields.forEach(id=>{if(o[id]!==undefined)$(id).value=o[id]});parts=o.parts||[];renderParts();clearSignature();if(o.signature){let im=new Image();im.onload=()=>{let c=$('signature').getContext('2d');c.clearRect(0,0,900,300);c.drawImage(im,0,0,900,300)};im.src=o.signature;} $('recordId').value=o.id||'';calc();}
+function getRecords(){try{return JSON.parse(localStorage.getItem('ats_records')||'[]')}catch(e){return []}}
+function saveRecord(){let o=collect();if(!o.customer&&!o.jobNo){alert('Renseigne au minimum le numéro de fiche ou le nom du client.');return;}let arr=getRecords();o.id=$('recordId').value||('ats_'+Date.now());let ix=arr.findIndex(x=>x.id===o.id);if(ix>=0)arr[ix]=o;else arr.unshift(o);localStorage.setItem('ats_records',JSON.stringify(arr));$('recordId').value=o.id;$('saveStatus').textContent='Fiche enregistrée sur cet appareil à '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});renderRecords();}
+function renderRecords(){let a=getRecords();$('records').innerHTML=a.length?a.map(o=>`<div class="record"><div><b>${esc(o.jobNo||'Sans numéro')} — ${esc(o.customer||'Client non renseigné')}</b><br><small>${esc(o.date||'')} • ${esc(o.machine||o.machineType||'')}</small></div><div><button onclick="loadRecord('${o.id}')">Ouvrir</button> <button class="danger" onclick="deleteRecord('${o.id}')">×</button></div></div>`).join(''):'<small>Aucune fiche enregistrée.</small>';}
+function loadRecord(id){let o=getRecords().find(x=>x.id===id);if(o){restore(o);window.scrollTo({top:0,behavior:'smooth'});}}
+function deleteRecord(id){if(confirm('Supprimer cette fiche de cet appareil ?')){localStorage.setItem('ats_records',JSON.stringify(getRecords().filter(x=>x.id!==id)));renderRecords();}}
+function exportBackup(){let blob=new Blob([JSON.stringify(getRecords(),null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='sauvegarde-agritech-interventions.json';a.click();URL.revokeObjectURL(a.href);}
+function importBackup(e){let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{let incoming=JSON.parse(r.result),old=getRecords(),map=new Map(old.map(x=>[x.id,x]));incoming.forEach(x=>map.set(x.id,x));localStorage.setItem('ats_records',JSON.stringify([...map.values()]));renderRecords();alert('Sauvegarde importée.');}catch(err){alert('Fichier de sauvegarde invalide.')}};r.readAsText(f);}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function printReport(){let rec=collect();let title='Fiche '+(rec.jobNo||'intervention');document.title=title;window.print();}
+const canvas=$('signature'),ctx=canvas.getContext('2d');ctx.lineWidth=4;ctx.lineCap='round';ctx.strokeStyle='#1d2923';let drawing=false;
+function pos(e){let r=canvas.getBoundingClientRect();return {x:(e.clientX-r.left)*canvas.width/r.width,y:(e.clientY-r.top)*canvas.height/r.height}}
+canvas.addEventListener('pointerdown',e=>{drawing=true;canvas.setPointerCapture(e.pointerId);let p=pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y)});
+canvas.addEventListener('pointermove',e=>{if(!drawing)return;let p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke()});
+canvas.addEventListener('pointerup',()=>drawing=false);canvas.addEventListener('pointercancel',()=>drawing=false);
+function clearSignature(){ctx.clearRect(0,0,canvas.width,canvas.height);}
+function saveCloudConfig(){localStorage.setItem('ats_supabase_url',val('supabaseUrl'));localStorage.setItem('ats_supabase_key',val('supabaseKey'));$('cloudMsg').textContent='Configuration enregistrée sur cet appareil. La synchronisation nécessite encore la création de la base et l’activation de l’authentification.'}
+function cloudInfo(){alert('Étape cloud à réaliser : créer un projet Supabase, activer une connexion privée par e-mail, créer la table des interventions et renseigner l’URL et la clé publique. La synchronisation automatique n’est pas activée dans cette version.');}
+if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
+$('date').value=new Date().toISOString().slice(0,10);$('signedDate').value=new Date().toISOString().slice(0,10);addPart();renderRecords();calc();
+</script>
+</body></html>

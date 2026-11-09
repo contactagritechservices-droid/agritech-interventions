@@ -1,0 +1,9 @@
+{
+  "name": "AgriTech Services — Interventions",
+  "short_name": "AgriTech SAV",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f4f5f2",
+  "theme_color": "#1d2923",
+  "icons": []
+}
