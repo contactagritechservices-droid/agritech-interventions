@@ -48,6 +48,24 @@ canvas{width:100%;height:140px;border:1px dashed #9eaa9c;border-radius:8px;touch
  <div id="saveStatus" class="status">Stockage local prêt. Les fiches enregistrées restent sur cet appareil.</div>
 </div>
 
+
+<section class="panel no-print">
+<h2>Connexion sécurisée — AgriTech Services</h2>
+<div class="grid">
+<div class="full"><label>URL du projet Supabase</label><input id="supabaseUrl" placeholder="https://xxxx.supabase.co"></div>
+<div class="full"><label>Clé publique anon / publishable</label><input id="supabaseKey" placeholder="Clé publique du projet"></div>
+<div><label>Adresse e-mail</label><input id="authEmail" type="email" autocomplete="username"></div>
+<div><label>Mot de passe</label><input id="authPassword" type="password" autocomplete="current-password"></div>
+</div>
+<div class="actions">
+<button type="button" onclick="connectCloud()">Se connecter</button>
+<button type="button" class="light" onclick="registerCloud()">Créer mon compte</button>
+<button type="button" class="secondary" onclick="disconnectCloud()">Se déconnecter</button>
+<button type="button" class="light" onclick="saveCloudConfig()">Enregistrer le projet</button>
+</div>
+<div id="cloudMsg" class="status">Non connecté. Configure ton projet Supabase puis connecte-toi avec ton compte personnel.</div>
+</section>
+
 <form id="jobForm" onsubmit="return false">
 <input type="hidden" id="recordId">
 <section class="panel"><h2>1. Dossier et intervention</h2><div class="grid">
@@ -134,13 +152,9 @@ canvas{width:100%;height:140px;border:1px dashed #9eaa9c;border-radius:8px;touch
 </form>
 
 <section class="panel no-print"><h2>10. Historique des fiches enregistrées</h2><div id="records" class="list"><small>Aucune fiche enregistrée.</small></div></section>
-<section class="panel no-print"><h2>11. Synchronisation cloud (option à activer)</h2>
-<p class="hint">Les fiches sont actuellement conservées sur cet appareil. Pour les retrouver sur plusieurs appareils, il faudra relier un compte cloud privé et configurer sa base de données. La synchronisation n’est pas encore active.</p>
-<div class="grid"><div><label>URL du projet Supabase</label><input id="supabaseUrl" placeholder="https://xxxx.supabase.co"></div><div><label>Clé publique anon</label><input id="supabaseKey" placeholder="Clé publique du projet"></div></div>
-<div class="actions"><button class="secondary" type="button" onclick="saveCloudConfig()">Enregistrer la configuration</button><button class="light" type="button" onclick="cloudInfo()">Voir les étapes cloud</button></div>
-<div id="cloudMsg" class="hint"></div>
-</section>
+
 </main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const fields = ["jobNo","date","status","technician","arrival","departure","customer","contact","address","postcode","city","email","phone","machineType","machine","serial","registration","hoursMachine","year","request","symptoms","faults","checks","diagnosis","reservations","work","testResult","machineReturned","recommendations","laborHours","laborRate","travelHours","travelRate","km","kmRate","expenses","discount","vatRate","surcharge","signer","signedDate"];
 const money=n=>new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'}).format(Number(n)||0);
@@ -163,10 +177,75 @@ document.querySelectorAll('#jobForm input,#jobForm select,#jobForm textarea').fo
 function collect(){let obj={};fields.forEach(id=>obj[id]=val(id));obj.parts=parts;obj.signature=$('signature').toDataURL('image/png');obj.updatedAt=new Date().toISOString();return obj;}
 function restore(o){fields.forEach(id=>{if(o[id]!==undefined)$(id).value=o[id]});parts=o.parts||[];renderParts();clearSignature();if(o.signature){let im=new Image();im.onload=()=>{let c=$('signature').getContext('2d');c.clearRect(0,0,900,300);c.drawImage(im,0,0,900,300)};im.src=o.signature;} $('recordId').value=o.id||'';calc();}
 function getRecords(){try{return JSON.parse(localStorage.getItem('ats_records')||'[]')}catch(e){return []}}
-function saveRecord(){let o=collect();if(!o.customer&&!o.jobNo){alert('Renseigne au minimum le numéro de fiche ou le nom du client.');return;}let arr=getRecords();o.id=$('recordId').value||('ats_'+Date.now());let ix=arr.findIndex(x=>x.id===o.id);if(ix>=0)arr[ix]=o;else arr.unshift(o);localStorage.setItem('ats_records',JSON.stringify(arr));$('recordId').value=o.id;$('saveStatus').textContent='Fiche enregistrée sur cet appareil à '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});renderRecords();}
+
+let supabaseClient=null,cloudUser=null;
+function setCloudMessage(t){$('cloudMsg').textContent=t;}
+function initSupabase(){
+ const url=(val('supabaseUrl')||localStorage.getItem('ats_supabase_url')||'').trim();
+ const key=(val('supabaseKey')||localStorage.getItem('ats_supabase_key')||'').trim();
+ if($('supabaseUrl')&&!val('supabaseUrl'))$('supabaseUrl').value=url;
+ if($('supabaseKey')&&!val('supabaseKey'))$('supabaseKey').value=key;
+ if(!url||!key||!window.supabase)return null;
+ if(!supabaseClient)supabaseClient=window.supabase.createClient(url,key);
+ return supabaseClient;
+}
+function saveCloudConfig(){
+ localStorage.setItem('ats_supabase_url',val('supabaseUrl').trim());
+ localStorage.setItem('ats_supabase_key',val('supabaseKey').trim());
+ supabaseClient=null;initSupabase();
+ setCloudMessage('Configuration enregistrée. Connecte-toi avec ton compte personnel.');
+}
+async function connectCloud(){
+ const c=initSupabase();if(!c){setCloudMessage('Renseigne une URL Supabase et la clé publique.');return;}
+ const {data,error}=await c.auth.signInWithPassword({email:val('authEmail').trim(),password:val('authPassword')});
+ if(error){setCloudMessage('Connexion impossible : '+error.message);return;}
+ cloudUser=data.user;setCloudMessage('Connecté : '+cloudUser.email+'. Récupération des fiches…');await loadCloudRecords();
+}
+async function registerCloud(){
+ const c=initSupabase();if(!c){setCloudMessage('Renseigne d’abord l’URL et la clé publique Supabase.');return;}
+ const {data,error}=await c.auth.signUp({email:val('authEmail').trim(),password:val('authPassword')});
+ if(error){setCloudMessage('Création du compte impossible : '+error.message);return;}
+ if(data.session){cloudUser=data.user;setCloudMessage('Compte créé et connecté.');}
+ else setCloudMessage('Compte demandé. Si la confirmation e-mail est activée, valide le message reçu puis connecte-toi.');
+}
+async function disconnectCloud(){if(supabaseClient)await supabaseClient.auth.signOut();cloudUser=null;setCloudMessage('Déconnecté. Les fiches locales restent disponibles.');}
+async function loadCloudRecords(){
+ const c=initSupabase();if(!c)return;
+ const {data:{user}}=await c.auth.getUser();cloudUser=user;
+ if(!user){setCloudMessage('Non connecté.');return;}
+ const {data,error}=await c.from('interventions').select('local_id,payload').eq('user_id',user.id);
+ if(error){setCloudMessage('Lecture cloud impossible : '+error.message);return;}
+ const map=new Map(getRecords().map(x=>[x.id,x]));
+ (data||[]).forEach(row=>{if(row.payload)map.set(row.local_id,{...row.payload,id:row.local_id});});
+ localStorage.setItem('ats_records',JSON.stringify([...map.values()]));renderRecords();
+ setCloudMessage((data||[]).length+' fiche(s) récupérée(s) depuis Supabase. Les fiches locales sont conservées.');
+}
+async function pushCloudRecord(o){
+ const c=initSupabase();if(!c)return;
+ const {data:{user},error:authError}=await c.auth.getUser();
+ if(authError||!user){setCloudMessage('Fiche sauvegardée localement. Connecte-toi pour la synchroniser.');return;}
+ const row={user_id:user.id,local_id:o.id,payload:o,numero_fiche:o.jobNo||null,date_intervention:o.date||null,client_nom:o.customer||null};
+ const {error}=await c.from('interventions').upsert(row,{onConflict:'user_id,local_id'});
+ if(error)setCloudMessage('Sauvegarde locale OK, erreur cloud : '+error.message);
+ else setCloudMessage('Fiche enregistrée et synchronisée dans Supabase.');
+}
+async function saveRecord(){
+ let o=collect();if(!o.customer&&!o.jobNo){alert('Renseigne au minimum le numéro de fiche ou le nom du client.');return;}
+ let arr=getRecords();o.id=$('recordId').value||('ats_'+Date.now());let ix=arr.findIndex(x=>x.id===o.id);
+ if(ix>=0)arr[ix]=o;else arr.unshift(o);
+ localStorage.setItem('ats_records',JSON.stringify(arr));$('recordId').value=o.id;
+ $('saveStatus').textContent='Fiche enregistrée sur cet appareil à '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+ renderRecords();await pushCloudRecord(o);
+}
+
 function renderRecords(){let a=getRecords();$('records').innerHTML=a.length?a.map(o=>`<div class="record"><div><b>${esc(o.jobNo||'Sans numéro')} — ${esc(o.customer||'Client non renseigné')}</b><br><small>${esc(o.date||'')} • ${esc(o.machine||o.machineType||'')}</small></div><div><button onclick="loadRecord('${o.id}')">Ouvrir</button> <button class="danger" onclick="deleteRecord('${o.id}')">×</button></div></div>`).join(''):'<small>Aucune fiche enregistrée.</small>';}
 function loadRecord(id){let o=getRecords().find(x=>x.id===id);if(o){restore(o);window.scrollTo({top:0,behavior:'smooth'});}}
-function deleteRecord(id){if(confirm('Supprimer cette fiche de cet appareil ?')){localStorage.setItem('ats_records',JSON.stringify(getRecords().filter(x=>x.id!==id)));renderRecords();}}
+async function deleteRecord(id){
+ if(!confirm('Supprimer cette fiche de cet appareil et du cloud si elle y est synchronisée ?'))return;
+ localStorage.setItem('ats_records',JSON.stringify(getRecords().filter(x=>x.id!==id)));
+ const c=initSupabase();if(c){const {data:{user}}=await c.auth.getUser();if(user){const {error}=await c.from('interventions').delete().eq('user_id',user.id).eq('local_id',id);if(error)setCloudMessage('Suppression locale OK, erreur cloud : '+error.message);}}
+ renderRecords();
+}
 function exportBackup(){let blob=new Blob([JSON.stringify(getRecords(),null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='sauvegarde-agritech-interventions.json';a.click();URL.revokeObjectURL(a.href);}
 function importBackup(e){let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{let incoming=JSON.parse(r.result),old=getRecords(),map=new Map(old.map(x=>[x.id,x]));incoming.forEach(x=>map.set(x.id,x));localStorage.setItem('ats_records',JSON.stringify([...map.values()]));renderRecords();alert('Sauvegarde importée.');}catch(err){alert('Fichier de sauvegarde invalide.')}};r.readAsText(f);}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -180,6 +259,10 @@ function clearSignature(){ctx.clearRect(0,0,canvas.width,canvas.height);}
 function saveCloudConfig(){localStorage.setItem('ats_supabase_url',val('supabaseUrl'));localStorage.setItem('ats_supabase_key',val('supabaseKey'));$('cloudMsg').textContent='Configuration enregistrée sur cet appareil. La synchronisation nécessite encore la création de la base et l’activation de l’authentification.'}
 function cloudInfo(){alert('Étape cloud à réaliser : créer un projet Supabase, activer une connexion privée par e-mail, créer la table des interventions et renseigner l’URL et la clé publique. La synchronisation automatique n’est pas activée dans cette version.');}
 if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
-$('date').value=new Date().toISOString().slice(0,10);$('signedDate').value=new Date().toISOString().slice(0,10);addPart();renderRecords();calc();
+$('date').value=new Date().toISOString().slice(0,10);$('signedDate').value=new Date().toISOString().slice(0,10);
+$('supabaseUrl').value=localStorage.getItem('ats_supabase_url')||'';
+$('supabaseKey').value=localStorage.getItem('ats_supabase_key')||'';
+addPart();renderRecords();calc();initSupabase();
+if(supabaseClient){supabaseClient.auth.getSession().then(async ({data})=>{if(data.session){cloudUser=data.session.user;setCloudMessage('Session retrouvée : '+cloudUser.email);await loadCloudRecords();}});}
 </script>
 </body></html>
